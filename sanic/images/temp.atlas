@@ -1,0 +1,9 @@
+images {
+  image: "/sanic/images/tempBall.png"
+}
+images {
+  image: "/sanic/images/tempStand.png"
+}
+margin: 0
+extrude_borders: 0
+inner_padding: 0

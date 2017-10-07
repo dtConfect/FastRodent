@@ -1,0 +1,497 @@
+local SANIC_STATE_GROUND = hash("ground")
+local SANIC_STATE_AIR = hash("air")
+
+local SANIC_GROUND_MODE_OVER = 1
+local SANIC_GROUND_MODE_LEFT = 2
+local SANIC_GROUND_MODE_UNDER = 3
+local SANIC_GROUND_MODE_RIGHT = 4
+
+local SANIC_GROUND_MODES = 4
+
+local SPRITE_ANGLES = 8
+local RAD_2_SPRITE_ANGLE = (2*math.pi)/SPRITE_ANGLES
+local SPRITE_ANGLE_2_RAD = SPRITE_ANGLES/(2*math.pi)
+
+local SANIC_GM_UP = {vmath.vector3(0,1,0), vmath.vector3(-1,0,0), vmath.vector3(0,-1,0), vmath.vector3(1,0,0)}
+local SANIC_GM_RIGHT = {vmath.vector3(1,0,0), vmath.vector3(0,1,0), vmath.vector3(-1,0,0), vmath.vector3(0,-1,0)}
+
+local PER_FRAME_2_PER_SECOND = 60
+
+local ACCEL_GROUND = PER_FRAME_2_PER_SECOND*0.046875
+local ACCEL_AIR = PER_FRAME_2_PER_SECOND*0.046875
+
+local DECEL_GROUND_RUN = PER_FRAME_2_PER_SECOND*0.5
+local FRICTION_GROUND_RUN = PER_FRAME_2_PER_SECOND*0.046875
+
+local TOP_SPEED_GROUND_RUN = PER_FRAME_2_PER_SECOND*6
+local TOP_SPEED_AIR_Y = 16
+
+local GRAVITY_AIR = -0.21875
+
+local JUMP_INITIAL_SPEED = 5
+
+-- Sensor positions
+local POS_LOW = -4
+local POS_BOTTOM = -20
+
+local POS_LEFT = -10
+local POS_LEFT_S = -9
+local POS_CENTRE = 0
+local POS_RIGHT = 10
+local POS_RIGHT_S = 9
+
+local SENSOR_LEFT_LOW = vmath.vector3(POS_LEFT, POS_LOW, 0)
+local SENSOR_RIGHT_LOW = vmath.vector3(POS_RIGHT, POS_LOW, 0)
+
+local SENSOR_LEFT_BOTTOM = vmath.vector3(POS_LEFT_S, POS_BOTTOM, 0)
+local SENSOR_RIGHT_BOTTOM = vmath.vector3(POS_RIGHT_S, POS_BOTTOM, 0)
+
+local TILEMAP_URL = "/level#tilemap"
+
+local TILE_SIZE = 16
+
+local TILE_DATA_PATH = "/resources/tiles/tile_black.json"
+
+function print_table(table)
+	for key, value in pairs(table) do
+		print('\t', key, value)
+	end
+end
+
+function load_tile_data(filename)
+	local filedata = sys.load_resource(filename)
+	local json_data = json.decode(filedata)
+
+	return json_data.tile_data
+end
+
+local TILE_DATA = load_tile_data(TILE_DATA_PATH)
+
+local TILE_DATA_D =	{
+							{solid = true, angle = 0, heightmap = {{6,6,6,6,6,6,6,6,5,5,5,5,5,5,5,5}, {16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16}, {}, {16,16,16,16,16,8,0,0,0,0,0,0,0,0,0,0}}},
+							{solid = true, angle = 0, heightmap = {{5,5,5,5,5,5,5,5,6,6,6,6,6,6,6,6}, {16,16,16,16,16,8,0,0,0,0,0,0,0,0,0,0}, {}, {16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16}}},
+							{solid = true, angle = 0.7, heightmap = {{0,0,0,0,0,0,0,0,0,0,1,2,3,4,5,6}, {16,16,16,16,16,16,0,0,0,0,0,0,0,0,0,0}, {}, {6,5,4,3,2,1,0,0,0,0,0,0,0,0,0,0}}},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+--
+							{solid = true, angle = 0, heightmap = {{16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16}, {16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16}, {}, {16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16}}},
+							{solid = false},
+							{solid = true, angle = 0.7, heightmap = {{7,8,9,10,11,12,13,14,15,16,16,16,16,16,16,16}, {16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16}, {}, {16,16,16,16,16,16,16,15,14,13,12,11,10,9,8,7}}},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+--
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+--
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+--
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+--
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false},
+							{solid = false}
+}
+
+
+function init(self)
+	msg.post(".", "acquire_input_focus")
+	
+	-- Initialise Input Variables
+	blank_inputs(self)
+	
+	-- Initialise Speed Variables
+	self.xsp = 0
+	self.ysp = 0
+	self.gsp = 0
+	
+	-- Initialise State Variables
+	self.sanic_state = SANIC_STATE_AIR
+	self.on_ground = nil
+	
+	-- Add initialization code here
+	-- Remove this function if not needed
+end
+
+
+
+function final(self)
+	msg.post(".", "release_input_focus")
+	
+	-- Add finalization code here
+	-- Remove this function if not needed
+end
+
+
+
+function update(self, dt)
+	if self.sanic_state == SANIC_STATE_GROUND then
+		update_ground(self, dt)
+	elseif self.sanic_state == SANIC_STATE_AIR then
+		update_air(self, dt)
+	end
+	
+	-- Move GO by xsp and ysp
+	local pos = go.get_position()
+	pos = pos + vmath.vector3(self.xsp, self.ysp, 0)
+	go.set_position(pos)
+	
+	-- Stop at walls, floors, etc
+	check_terrain(self, dt)
+	
+	if self.sanic_state == SANIC_STATE_GROUND then
+		update_ground_post(self, dt)
+	elseif self.sanic_state == SANIC_STATE_AIR then
+		update_air_post(self, dt)	
+	end
+	
+	-- Visual updates
+	set_sprite_angle(self)
+	
+	-- Blank inputs
+	blank_inputs(self)
+end
+
+
+
+function blank_inputs(self)
+	self.input_lr = 0
+	self.input_jump = false
+	self.input_jump_pressed = false
+end
+
+
+
+function update_ground(self, dt)
+	
+	if self.input_lr ~= 0 then
+		-- Apply input to Ground Speed
+		self.gsp = self.gsp + (ACCEL_GROUND * dt * self.input_lr)
+	else
+		-- Apply friction and deceleration
+		apply_friction(self, dt)
+	end
+	
+	-- Limit top speed
+	apply_top_speed(self)
+	
+	-- Apply Ground Speed to X and Y Speed
+	apply_ground_speed(self)	
+	
+	-- Apply gravity
+	apply_gravity(self, dt)
+	
+	-- Attempt jump
+	if self.input_jump_pressed == true then
+		self.sanic_state = SANIC_STATE_AIR
+		
+		local ground_angle = get_ground_angle(self)
+		self.xsp = self.xsp + JUMP_INITIAL_SPEED * -math.sin(ground_angle)
+		self.ysp = self.ysp + JUMP_INITIAL_SPEED * math.cos(ground_angle)
+		
+		self.gsp = 0	
+	end
+end
+
+
+
+function update_ground_post(self, dt)
+	-- check if we should switch to air mode
+	if self.on_ground == nil then
+		self.sanic_state = SANIC_STATE_AIR	
+	end
+end
+
+
+
+function update_air(self, dt)
+	-- Apply input to Air Speed
+	self.xsp = self.xsp + (ACCEL_AIR * dt * self.input_lr)
+	
+	-- Apply gravity	
+	apply_gravity(self, dt)
+	
+	self.ysp = math.min(self.ysp, TOP_SPEED_AIR_Y)
+	self.ysp = math.max(self.ysp, -TOP_SPEED_AIR_Y)
+	
+	-- Land?
+end
+
+
+function update_air_post(self, dt)
+	-- Check if we should land
+	if self.on_ground and self.on_ground.touched then
+		self.sanic_state = SANIC_STATE_GROUND	
+		self.gsp = self.xsp
+		self.xsp = 0
+		self.ysp = 0
+	end
+end
+
+
+
+function on_message(self, message_id, message, sender)
+	-- Add message-handling code here
+	-- Remove this function if not needed
+end
+
+
+
+function on_input(self, action_id, action)
+	-- Take input for left/right movement
+	if action_id == hash("move_left") then
+		self.input_lr = self.input_lr - 1
+	end
+	if action_id == hash("move_right") then
+		self.input_lr = self.input_lr + 1
+	end
+	if action_id == hash("action_jump") then
+		self.input_jump = true
+		if action.pressed then
+			self.input_jump_pressed = true
+		end
+	end
+end
+
+function on_reload(self)
+	-- Add reload-handling code here
+	-- Remove this function if not needed
+end
+
+
+
+function apply_gravity(self, dt)
+	self.ysp = self.ysp + GRAVITY_AIR
+end
+
+
+
+function apply_friction(self, dt)
+	local accel_this_frame = FRICTION_GROUND_RUN * dt
+	if math.abs(self.gsp) <= accel_this_frame then
+		-- Stop
+		self.gsp = 0
+	else
+		-- Deduct friction value from ground speed	
+		local sign = 1
+		if self.gsp < 0 then
+			sign = -1	
+		end
+		
+		self.gsp = self.gsp - (sign * accel_this_frame)	
+	end
+end
+
+
+
+function apply_top_speed(self)
+	self.gsp = math.min(self.gsp, TOP_SPEED_GROUND_RUN)
+	self.gsp = math.max(self.gsp, -TOP_SPEED_GROUND_RUN)	
+end
+
+
+
+function apply_ground_speed(self)
+	-- Get ground angle and use it to convert ground speed to x and y speed
+	local ground_angle = get_ground_angle(self)
+	self.xsp = self.gsp * math.cos(ground_angle)
+	self.ysp = self.gsp * math.sin(ground_angle)
+end
+
+
+
+function get_ground_angle(self)
+	if self.on_ground and self.on_ground.touched then
+		return TILE_DATA[self.on_ground.tile].angle
+	else
+		return 0
+	end
+end
+
+
+
+function check_terrain(self)
+	self.on_ground = nil
+	
+	-- WALLS
+	done = false
+	while done == false do
+		local left_low_ground = get_ground_under_sensor(self, SENSOR_LEFT_LOW, SANIC_GROUND_MODE_OVER)
+		local right_low_ground = get_ground_under_sensor(self, SENSOR_RIGHT_LOW, SANIC_GROUND_MODE_OVER)
+		
+		if left_low_ground.touched or right_low_ground.touched then
+			print("STOP!!!")
+			-- Stop x movement
+			self.xsp = 0	
+			-- Zero ground speed
+			self.gsp = 0
+		else
+			done = true
+		end
+	end
+	
+	-- FLOOR
+	local left_bottom_ground = nil
+	local right_bottom_ground = nil
+	
+	local done = false
+	while done == false do
+		local left_bottom_ground = get_ground_under_sensor(self, SENSOR_LEFT_BOTTOM, SANIC_GROUND_MODE_OVER)
+		local right_bottom_ground = get_ground_under_sensor(self, SENSOR_RIGHT_BOTTOM, SANIC_GROUND_MODE_OVER)
+	
+		if left_bottom_ground.touched or right_bottom_ground.touched then
+			-- Push up to the height of detected floors
+			if self.on_ground == nil or left_bottom_ground.touched and left_bottom_ground.height > self.on_ground.height then
+				self.on_ground = left_bottom_ground
+			end
+			if self.on_ground == nil or right_bottom_ground.touched and right_bottom_ground.height > self.on_ground.height then
+				self.on_ground = right_bottom_ground
+			end
+	
+			if self.on_ground then
+				local pos = go.get_position()
+				pos.y = self.on_ground.height - POS_BOTTOM
+
+				go.set_position(pos)	
+			end
+		else
+			done = true
+		end
+	end
+end	
+
+
+
+function get_ground_under_sensor(self, sensor_offset, ground_mode)
+	
+	local up = SANIC_GM_UP[ground_mode]
+	local right = SANIC_GM_RIGHT[ground_mode]
+	
+	-- Get the world position of the sensor
+	local pos = go.get_position()
+	local sensor_world_pos = pos + (sensor_offset.x*right + sensor_offset.y*up)
+	local sensor_tile_pos = world_to_tile_vector(sensor_world_pos)
+	
+	-- Set up the return struct
+	local ret = {solid = false, height = sensor_world_pos.y, tile = nil}
+	
+	-- Get the tile type under the sensor
+	local sensor_tile = tilemap.get_tile(TILEMAP_URL,"fore",sensor_tile_pos.x+1,sensor_tile_pos.y+1)
+	
+	if sensor_tile then
+		
+		-- Get data associated with the tile type and check that it is solid
+		local sensor_tile_data = TILE_DATA[sensor_tile]
+		
+		if sensor_tile_data and sensor_tile_data.solid == true then
+			
+			-- Calculate the sub-tile X position of the sensor and get the world height of the tile at that X
+			local sub_tile_x_pos = math.floor(sensor_world_pos.x-(sensor_tile_pos.x*TILE_SIZE))
+			
+			local height_at_sub_tile_x_pos = (sensor_tile_pos.y*TILE_SIZE) + sensor_tile_data.heightmap[ground_mode][sub_tile_x_pos+1]
+
+			-- Always return tile data for solid tiles
+			ret.touched = sensor_world_pos.y < height_at_sub_tile_x_pos
+			ret.solid = true
+			ret.height = height_at_sub_tile_x_pos
+			ret.tile = sensor_tile
+			
+		end
+	end
+	
+	return ret
+end
+
+
+
+function world_to_tile_vector(world_pos)
+	return vmath.vector3(math.floor(world_pos.x/TILE_SIZE), math.floor(world_pos.y/TILE_SIZE), 0)	
+end
+
+
+
+function get_sub_tile_height(tile_relative_pos, tile_data)
+	if tile_data.solid == false then
+		return 0
+	end
+	
+	print(tile_relative_pos.x)
+	return tile_data.heightmap[SANIC_GROUND_MODE_OVER][math.floor(tile_relative_pos.x)]
+end
+
+
+
+-- Returns the ground mode corresponding to a given angle of ground
+function get_ground_mode_for_angle(angle)
+	local segment_size = math.pi*2/4
+	local offset_angle = angle+(segment_size*0.5)
+	local segment = math.fmod(math.floor(offset_angle/segment_size), 4)+1
+	return segment
+end
+
+
+
+-- Returns the angle reduced to the nearest equal rotational division based on the number of rotated sprites
+function get_sprite_angle_for_angle(angle)
+	local offset_angle = angle +(RAD_2_SPRITE_ANGLE*0.5)
+
+	return RAD_2_SPRITE_ANGLE * math.floor(SPRITE_ANGLE_2_RAD * offset_angle)
+end
+
+
+
+-- Set the game object rotation
+function set_sprite_angle(self)
+	if self.on_ground then
+		local tile_data = TILE_DATA[self.on_ground.tile]
+		
+		local angle = get_sprite_angle_for_angle(tile_data.angle)	
+		
+		go.set_rotation(vmath.quat_rotation_z(angle))
+	end
+end
+
+
+
