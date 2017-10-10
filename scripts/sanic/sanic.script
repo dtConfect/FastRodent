@@ -1,6 +1,7 @@
 local mod_ground_mode = require "scripts.shared.ground_mode"
 local mod_sensor_helper = require "scripts.shared.sensor_helper"
 local mod_utils = require "scripts.shared.utils"
+local mod_tile_helper = require "scripts.shared.tile_helper"
 
 local mod_sanic_state = require "scripts.sanic.sanic_state"
 
@@ -30,8 +31,6 @@ local GRAVITY_AIR = -0.21875
 local JUMP_INITIAL_SPEED = 5
 
 local TILEMAP_URL = "/level#tilemap"
-
-local TILE_SIZE = 16
 
 local TILE_DATA_PATH = "/resources/tiles/tile_black.json"
 
@@ -115,6 +114,7 @@ local TILE_DATA_D =	{
 
 -- Properties
 go.property("sanic_state",0)
+go.property("ground_mode",0)
 go.property("flipped",false)
 go.property("ducking",false)
 go.property("looking_up",false)
@@ -128,6 +128,7 @@ function init(self)
 	msg.post(".", "acquire_input_focus")
 	
 	self.sanic_state = mod_sanic_state.SANIC_STATE_AIR
+	self.ground_mode = mod_ground_mode.SANIC_GROUND_MODE_OVER
 	self.on_ground = nil
 	
 	-- Initialise Input Variables
@@ -290,7 +291,7 @@ function update_air_post(self, dt)
 	if self.on_ground and self.on_ground.touched then
 		self.sanic_state = mod_sanic_state.SANIC_STATE_GROUND	
 		self.rolling = self.input_down
-		print("rolling\t",self.rolling)
+		
 		self.gsp = self.xsp
 		self.xsp = 0
 		self.ysp = 0
@@ -378,7 +379,7 @@ function apply_ground_speed(self)
 	local ground_angle = get_ground_angle(self)
 	self.xsp = self.gsp * math.cos(ground_angle)
 	self.ysp = self.gsp * math.sin(ground_angle)
-	print("Applying ground speed results, x:\t", self.xsp, "\ty:zt", self.ysp)
+	--print("Applying ground speed results, x:\t", self.xsp, "\ty:zt", self.ysp)
 end
 
 
@@ -396,21 +397,47 @@ end
 function check_terrain(self)
 	self.on_ground = nil
 	
-	-- WALLS
-	done = false
-	while done == false do
+	-- WALLS	
+	local my_pos = go.get_position()
+	local wall_sensors = {}
+	for i, v in pairs(mod_sensor_helper.SENSOR_COLLECTION_WALL) do
+		-- Make a copy of the standard sensor data because we intend to modify it
+		local new_sensor = mod_sensor_helper.copy_sensor_data(v)
+		-- Rotate the sensor offset to match our ground mode
+		mod_sensor_helper.orient_sensor_offset(new_sensor, self.ground_mode)
+		-- Offset the sensor position by our world position
+		mod_sensor_helper.set_sensor_pos(new_sensor, my_pos)
+		-- Add to our array
+		table.insert(wall_sensors, new_sensor)
+	end
+
 		
-		local left_low_ground = get_ground_under_sensor(self, mod_sensor_helper.SENSOR_LEFT_LOW, mod_ground_mode.SANIC_GROUND_MODE_OVER)
-		local right_low_ground = get_ground_under_sensor(self, mod_sensor_helper.SENSOR_RIGHT_LOW, mod_ground_mode.SANIC_GROUND_MODE_OVER)
-		
-		if left_low_ground.touched or right_low_ground.touched then
-			print("STOP!!!")
-			-- Stop x movement
-			self.xsp = 0	
-			-- Zero ground speed
-			self.gsp = 0
-		else
-			done = true
+	-- Check each sensor in turn to see if it penetrates a wall, then move the game object till that sensor no longer does so
+	for i, v in pairs(wall_sensors) do
+		while true do
+			local ground_touched = get_ground_under_sensor(self, v)			
+			if ground_touched ~= nil and ground_touched.touched then
+				
+				-- Stop ground or x movement
+				self.xsp = 0
+				self.gsp = 0
+				
+				-- Move away from the wall
+				local pos  = go.get_position()
+			
+				local ground_touched_up = mod_ground_mode.SANIC_GM_UP[ground_touched.sensor.ground_mode]
+			
+				local correction = (ground_touched.penetration) * ground_touched_up
+				
+				pos = pos + correction
+				go.set_position(pos)
+				
+				for i, v in pairs(wall_sensors) do
+					mod_sensor_helper.offset_sensor_pos(v, correction)
+				end
+			else
+				break
+			end
 		end
 	end
 	
@@ -420,24 +447,47 @@ function check_terrain(self)
 	
 	local done = false
 	while done == false do
-		local left_bottom_ground = get_ground_under_sensor(self, mod_sensor_helper.SENSOR_LEFT_BOTTOM, mod_ground_mode.SANIC_GROUND_MODE_OVER)
-		local right_bottom_ground = get_ground_under_sensor(self, mod_sensor_helper.SENSOR_RIGHT_BOTTOM, mod_ground_mode.SANIC_GROUND_MODE_OVER)
+		--local left_bottom_ground = get_ground_under_sensor(self, mod_sensor_helper.SENSOR_LEFT_BOTTOM, mod_ground_mode.SANIC_GROUND_MODE_OVER)
+		--local right_bottom_ground = get_ground_under_sensor(self, mod_sensor_helper.SENSOR_RIGHT_BOTTOM, mod_ground_mode.SANIC_GROUND_MODE_OVER)
 	
-		if left_bottom_ground.touched or right_bottom_ground.touched then
-			-- Push up to the height of detected floors
-			if self.on_ground == nil or left_bottom_ground.touched and left_bottom_ground.height > self.on_ground.height then
-				self.on_ground = left_bottom_ground
-			end
-			if self.on_ground == nil or right_bottom_ground.touched and right_bottom_ground.height > self.on_ground.height then
-				self.on_ground = right_bottom_ground
-			end
 	
-			if self.on_ground then
-				local pos = go.get_position()
-				pos.y = self.on_ground.height - mod_sensor_helper.POS_BOTTOM
-
-				go.set_position(pos)	
+		-- TODO: Create these once and offset their position as we move the character
+		local my_pos = go.get_position()
+		local ground_sensors = {}
+		for i, v in pairs(mod_sensor_helper.SENSOR_COLLECTION_GROUND) do
+			-- Make a copy of the standard sensor data because we intend to modify it
+			local new_sensor = mod_sensor_helper.copy_sensor_data(v)
+			-- Rotate the sensor offset to match our ground mode
+			mod_sensor_helper.orient_sensor_offset(new_sensor, self.ground_mode)	
+			-- Offset the sensor position by our world position
+			mod_sensor_helper.set_sensor_pos(new_sensor, my_pos)
+			-- Add to our array
+			table.insert(ground_sensors, new_sensor)
+		end
+		
+		
+		-- Find the highest of the ground sensors at our current position
+		local highest_touched = nil
+		for i, v in pairs(ground_sensors) do
+			local ground_touched = get_ground_under_sensor(self, v)
+			if ground_touched ~= nil and ground_touched.touched then
+				if highest_touched == nil or ground_touched.penetration > highest_touched.penetration then
+					highest_touched = ground_touched	
+				end
 			end
+		end
+		
+		if highest_touched ~= nil then
+			
+			-- Move away from penetration
+			local pos  = go.get_position()
+			
+			local highest_touched_up = mod_ground_mode.SANIC_GM_UP[highest_touched.sensor.ground_mode]
+			
+			pos = pos + ((highest_touched.penetration) * highest_touched_up)
+			go.set_position(pos)
+			
+			self.on_ground = highest_touched
 		else
 			done = true
 		end
@@ -446,18 +496,13 @@ end
 
 
 
-function get_ground_under_sensor(self, sensor_offset, ground_mode)
-	
-	local up = mod_ground_mode.SANIC_GM_UP[ground_mode]
-	local right = mod_ground_mode.SANIC_GM_RIGHT[ground_mode]
-	
-	-- Get the world position of the sensor
-	local pos = go.get_position()
-	local sensor_world_pos = pos + (sensor_offset.x*right + sensor_offset.y*up)
-	local sensor_tile_pos = world_to_tile_vector(sensor_world_pos)
-	
+function get_ground_under_sensor(self, sensor_data)
+
 	-- Set up the return struct
-	local ret = {solid = false, height = sensor_world_pos.y, tile = nil}
+	local ret = {solid = false, touched = false, penetration = 0, tile = nil, sensor = mod_sensor_helper.copy_sensor_data(sensor_data)}
+	
+	local sensor_tile_pos = world_to_tile_pos(sensor_data.pos)
+	local sensor_sub_tile_pos = sensor_data.pos-(sensor_tile_pos*mod_tile_helper.TILE_SIZE)
 	
 	-- Get the tile type under the sensor
 	local sensor_tile = tilemap.get_tile(TILEMAP_URL,"fore",sensor_tile_pos.x+1,sensor_tile_pos.y+1)
@@ -469,15 +514,20 @@ function get_ground_under_sensor(self, sensor_offset, ground_mode)
 		
 		if sensor_tile_data and sensor_tile_data.solid == true then
 			
-			-- Calculate the sub-tile X position of the sensor and get the world height of the tile at that X
-			local sub_tile_x_pos = math.floor(sensor_world_pos.x-(sensor_tile_pos.x*TILE_SIZE))
+			-- Get the heightmap used for this sensor
+			-- TODO: This won't work when we start walking on walls and stuff, because we haven't combined the character ground mode with the sensor's
+			local heightmap = sensor_tile_data.heightmap[sensor_data.ground_mode]
 			
-			local height_at_sub_tile_x_pos = (sensor_tile_pos.y*TILE_SIZE) + sensor_tile_data.heightmap[ground_mode][sub_tile_x_pos+1]
+			local heightmap_coords = mod_ground_mode.separate_heightmap_coords(sensor_sub_tile_pos, sensor_data.ground_mode)
+			local heightmap_index = math.floor(heightmap_coords.offset)+1
+			
+			local heightmap_value_at_offset = heightmap[heightmap_index]
 
 			-- Always return tile data for solid tiles
-			ret.touched = sensor_world_pos.y < height_at_sub_tile_x_pos
 			ret.solid = true
-			ret.height = height_at_sub_tile_x_pos
+			
+			ret.penetration = heightmap_value_at_offset - heightmap_coords.height
+			ret.touched = ret.penetration > 0
 			ret.tile = sensor_tile
 			
 		end
@@ -488,8 +538,8 @@ end
 
 
 
-function world_to_tile_vector(world_pos)
-	return vmath.vector3(math.floor(world_pos.x/TILE_SIZE), math.floor(world_pos.y/TILE_SIZE), 0)	
+function world_to_tile_pos(world_pos)
+	return vmath.vector3(math.floor(world_pos.x/mod_tile_helper.TILE_SIZE), math.floor(world_pos.y/mod_tile_helper.TILE_SIZE), 0)	
 end
 
 
@@ -499,7 +549,6 @@ function get_sub_tile_height(tile_relative_pos, tile_data)
 		return 0
 	end
 	
-	print(tile_relative_pos.x)
 	return tile_data.heightmap[mod_ground_mode.SANIC_GROUND_MODE_OVER][math.floor(tile_relative_pos.x)]
 end
 

@@ -19,4 +19,8 @@ function M.sign(number)
 	end	
 end
 
+function M.scale_vector(vector, scale_vector)
+	return vmath.vector3(vector.x*scale_vector.x, vector.y*scale_vector.y, vector.z*scale_vector.z)	
+end
+
 return M
