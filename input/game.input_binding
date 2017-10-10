@@ -10,3 +10,11 @@ key_trigger {
   input: KEY_Z
   action: "action_jump"
 }
+key_trigger {
+  input: KEY_DOWN
+  action: "action_down"
+}
+key_trigger {
+  input: KEY_UP
+  action: "action_up"
+}
