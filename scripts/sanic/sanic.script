@@ -43,75 +43,6 @@ end
 
 local TILE_DATA = load_tile_data(TILE_DATA_PATH)
 
-local TILE_DATA_D =	{
-							{solid = true, angle = 0, heightmap = {{6,6,6,6,6,6,6,6,5,5,5,5,5,5,5,5}, {16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16}, {}, {16,16,16,16,16,8,0,0,0,0,0,0,0,0,0,0}}},
-							{solid = true, angle = 0, heightmap = {{5,5,5,5,5,5,5,5,6,6,6,6,6,6,6,6}, {16,16,16,16,16,8,0,0,0,0,0,0,0,0,0,0}, {}, {16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16}}},
-							{solid = true, angle = 0.7, heightmap = {{0,0,0,0,0,0,0,0,0,0,1,2,3,4,5,6}, {16,16,16,16,16,16,0,0,0,0,0,0,0,0,0,0}, {}, {6,5,4,3,2,1,0,0,0,0,0,0,0,0,0,0}}},
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false},
---
-							{solid = true, angle = 0, heightmap = {{16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16}, {16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16}, {}, {16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16}}},
-							{solid = false},
-							{solid = true, angle = 0.7, heightmap = {{7,8,9,10,11,12,13,14,15,16,16,16,16,16,16,16}, {16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16}, {}, {16,16,16,16,16,16,16,15,14,13,12,11,10,9,8,7}}},
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false},
---
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false},
---
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false},
---
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false},
---
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false},
-							{solid = false}
-}
-
-
 -- Properties
 go.property("sanic_state",0)
 go.property("ground_mode",0)
@@ -386,7 +317,7 @@ end
 
 function get_ground_angle(self)
 	if self.on_ground and self.on_ground.touched then
-		return TILE_DATA[self.on_ground.tile].angle
+		return TILE_DATA[self.on_ground.tile].angle[self.ground_mode]
 	else
 		return 0
 	end
@@ -423,14 +354,12 @@ function check_terrain(self)
 				self.gsp = 0
 				
 				-- Move away from the wall
-				local pos  = go.get_position()
-			
 				local ground_touched_up = mod_ground_mode.SANIC_GM_UP[ground_touched.sensor.ground_mode]
 			
 				local correction = (ground_touched.penetration) * ground_touched_up
 				
-				pos = pos + correction
-				go.set_position(pos)
+				my_pos = my_pos + correction
+				go.set_position(my_pos)
 				
 				for i, v in pairs(wall_sensors) do
 					mod_sensor_helper.offset_sensor_pos(v, correction)
@@ -442,17 +371,6 @@ function check_terrain(self)
 	end
 	
 	-- FLOOR
-	local left_bottom_ground = nil
-	local right_bottom_ground = nil
-	
-	local done = false
-	while done == false do
-		--local left_bottom_ground = get_ground_under_sensor(self, mod_sensor_helper.SENSOR_LEFT_BOTTOM, mod_ground_mode.SANIC_GROUND_MODE_OVER)
-		--local right_bottom_ground = get_ground_under_sensor(self, mod_sensor_helper.SENSOR_RIGHT_BOTTOM, mod_ground_mode.SANIC_GROUND_MODE_OVER)
-	
-	
-		-- TODO: Create these once and offset their position as we move the character
-		local my_pos = go.get_position()
 		local ground_sensors = {}
 		for i, v in pairs(mod_sensor_helper.SENSOR_COLLECTION_GROUND) do
 			-- Make a copy of the standard sensor data because we intend to modify it
@@ -464,8 +382,9 @@ function check_terrain(self)
 			-- Add to our array
 			table.insert(ground_sensors, new_sensor)
 		end
-		
-		
+	
+
+	while true do	
 		-- Find the highest of the ground sensors at our current position
 		local highest_touched = nil
 		for i, v in pairs(ground_sensors) do
@@ -480,16 +399,20 @@ function check_terrain(self)
 		if highest_touched ~= nil then
 			
 			-- Move away from penetration
-			local pos  = go.get_position()
-			
 			local highest_touched_up = mod_ground_mode.SANIC_GM_UP[highest_touched.sensor.ground_mode]
 			
-			pos = pos + ((highest_touched.penetration) * highest_touched_up)
-			go.set_position(pos)
+			local correction = (highest_touched.penetration) * highest_touched_up
+			
+			my_pos = my_pos + correction
+			go.set_position(my_pos)
+			
+			for i, v in pairs(ground_sensors) do
+				mod_sensor_helper.offset_sensor_pos(v, correction)
+			end
 			
 			self.on_ground = highest_touched
 		else
-			done = true
+			break
 		end
 	end
 end	
@@ -578,7 +501,7 @@ function set_sprite_angle(self)
 	if self.on_ground then
 		local tile_data = TILE_DATA[self.on_ground.tile]
 		
-		local angle = get_sprite_angle_for_angle(tile_data.angle)	
+		local angle = get_sprite_angle_for_angle(tile_data.angle[self.ground_mode])	
 		
 		go.set_rotation(vmath.quat_rotation_z(angle))
 	end

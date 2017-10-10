@@ -19,6 +19,17 @@ function M.sign(number)
 	end	
 end
 
+function M.wrap(number, min, max)
+	local upper_bound = max+1
+	local range = upper_bound-min
+	local ret = ((number-min) % range)
+	if ret < 0 then
+		return upper_bound + 1 + number
+	else
+		return min + ret	
+	end
+end
+
 function M.scale_vector(vector, scale_vector)
 	return vmath.vector3(vector.x*scale_vector.x, vector.y*scale_vector.y, vector.z*scale_vector.z)	
 end

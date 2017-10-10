@@ -64,6 +64,8 @@ function M.orient_sensor_offset(sensor_data, character_ground_mode)
 	local right = mod_ground_mode.SANIC_GM_RIGHT[character_ground_mode]
 	
 	sensor_data.offset = right*sensor_data.offset.x + up*sensor_data.offset.y
+
+	sensor_data.ground_mode = mod_utils.wrap((sensor_data.ground_mode + character_ground_mode-1), 1, mod_ground_mode.SANIC_GROUND_MODES)
 end
 
 function M.set_sensor_pos(sensor_data, world_pos)
