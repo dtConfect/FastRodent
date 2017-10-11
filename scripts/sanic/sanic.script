@@ -5,6 +5,9 @@ local mod_tile_helper = require "scripts.shared.tile_helper"
 
 local mod_sanic_state = require "scripts.sanic.sanic_state"
 
+--local DEBUG_DRAW_SENSORS = true
+--local DEBUG_VERBOSE_SENSORS = true
+
 local SPRITE_ANGLES = 8
 local RAD_2_SPRITE_ANGLE = (2*math.pi)/SPRITE_ANGLES
 local SPRITE_ANGLE_2_RAD = SPRITE_ANGLES/(2*math.pi)
@@ -45,6 +48,7 @@ local TILE_DATA = load_tile_data(TILE_DATA_PATH)
 
 -- Properties
 go.property("sanic_state",0)
+go.property("ground_angle",0)
 go.property("ground_mode",0)
 go.property("flipped",false)
 go.property("ducking",false)
@@ -102,7 +106,7 @@ function update(self, dt)
 	end
 	
 	-- Visual updates
-	set_sprite_angle(self)
+	--set_sprite_angle(self)
 	
 	-- Blank inputs
 	blank_inputs(self)
@@ -148,14 +152,14 @@ function update_ground(self, dt)
 	
 	-- Attempt jump
 	if self.input_jump_pressed == true then
-		self.sanic_state = mod_sanic_state.SANIC_STATE_AIR
-		self.rolling = true
-		
 		local ground_angle = get_ground_angle(self)
 		self.xsp = self.xsp + JUMP_INITIAL_SPEED * -math.sin(ground_angle)
 		self.ysp = self.ysp + JUMP_INITIAL_SPEED * math.cos(ground_angle)
 		
 		self.gsp = 0	
+		
+		self.sanic_state = mod_sanic_state.SANIC_STATE_AIR
+		self.rolling = true
 	end
 	
 	-- Allow ducking or rolling
@@ -212,8 +216,6 @@ function update_air(self, dt)
 	
 	self.ysp = math.min(self.ysp, TOP_SPEED_AIR_Y)
 	self.ysp = math.max(self.ysp, -TOP_SPEED_AIR_Y)
-	
-	-- Land?
 end
 
 
@@ -224,8 +226,7 @@ function update_air_post(self, dt)
 		self.rolling = self.input_down
 		
 		self.gsp = self.xsp
-		self.xsp = 0
-		self.ysp = 0
+		apply_ground_speed(self)
 		print("landed")
 	end
 end
@@ -316,8 +317,8 @@ end
 
 
 function get_ground_angle(self)
-	if self.on_ground and self.on_ground.touched then
-		return TILE_DATA[self.on_ground.tile].angle[self.ground_mode]
+	if self.sanic_state == mod_sanic_state.SANIC_STATE_GROUND then
+		return self.ground_angle
 	else
 		return 0
 	end
@@ -352,6 +353,7 @@ function check_terrain(self)
 				-- Stop ground or x movement
 				self.xsp = 0
 				self.gsp = 0
+				print("zeroed")
 				
 				-- Move away from the wall
 				local ground_touched_up = mod_ground_mode.SANIC_GM_UP[ground_touched.sensor.ground_mode]
@@ -360,6 +362,17 @@ function check_terrain(self)
 				
 				my_pos = my_pos + correction
 				go.set_position(my_pos)
+				
+				-- Debug output wall details
+				if DEBUG_VERBOSE_SENSORS == true then
+					print("Hit wall:")
+					mod_utils.print_table(ground_touched)
+				end
+				
+				-- Debug draw correction line
+				if DEBUG_DRAW_SENSORS == true then
+					msg.post("@render:", "draw_line", {start_point = my_pos, end_point = my_pos-correction, color = vmath.vector4(1,0,0,1)})
+				end
 				
 				for i, v in pairs(wall_sensors) do
 					mod_sensor_helper.offset_sensor_pos(v, correction)
@@ -411,6 +424,7 @@ function check_terrain(self)
 			end
 			
 			self.on_ground = highest_touched
+			self.ground_angle = TILE_DATA[self.on_ground.tile].angle[self.ground_mode]
 		else
 			break
 		end
