@@ -311,7 +311,7 @@ function apply_ground_speed(self)
 	local ground_angle = get_ground_angle(self)
 	self.xsp = self.gsp * math.cos(ground_angle)
 	self.ysp = self.gsp * math.sin(ground_angle)
-	--print("Applying ground speed results, x:\t", self.xsp, "\ty:zt", self.ysp)
+	--print("Applying ground speed results, gsp:\t", self.gsp, " x:\t", self.xsp, "\ty:zt", self.ysp)
 end
 
 
@@ -353,7 +353,6 @@ function check_terrain(self)
 				-- Stop ground or x movement
 				self.xsp = 0
 				self.gsp = 0
-				print("zeroed")
 				
 				-- Move away from the wall
 				local ground_touched_up = mod_ground_mode.SANIC_GM_UP[ground_touched.sensor.ground_mode]
