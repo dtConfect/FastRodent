@@ -28,6 +28,21 @@ components {
     w: 1.0
   }
 }
+components {
+  id: "camera_focus"
+  component: "/scripts/sanic/camera_focus.script"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
 embedded_components {
   id: "spriteTemp"
   type: "sprite"
@@ -52,7 +67,7 @@ embedded_components {
   id: "sprite"
   type: "sprite"
   data: "tile_set: \"/sanic/images/sonic2.tilesource\"\n"
-  "default_animation: \"spring\"\n"
+  "default_animation: \"stand\"\n"
   "material: \"/builtins/materials/sprite.material\"\n"
   "blend_mode: BLEND_MODE_ALPHA\n"
   ""

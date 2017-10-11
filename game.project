@@ -5,6 +5,7 @@ custom_resources = resources/
 
 [bootstrap]
 main_collection = /main/main.collectionc
+render = /defold_orthographic/render/orthographic.renderc
 
 [input]
 game_binding = /input/game.input_bindingc
