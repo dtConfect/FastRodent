@@ -12,6 +12,7 @@ local SPRITE_ANGLES = 8
 local RAD_2_SPRITE_ANGLE = (2*math.pi)/SPRITE_ANGLES
 local SPRITE_ANGLE_2_RAD = SPRITE_ANGLES/(2*math.pi)
 
+-- We define a lot of values here as per frame (assuming 60 fps).
 local PER_FRAME_2_PER_SECOND = 60
 
 local ACCEL_GROUND = PER_FRAME_2_PER_SECOND*0.046875
@@ -323,7 +324,7 @@ function apply_directional_input(self, dt)
 				else
 					-- If the input is in the opposite direction to our current gsp
 					-- Then decelerate
-					applied_accel = (DECEL_GROUND_RUN * self.input_lr)
+					applied_accel = get_decel_speed(self)
 					self.decelerating = true
 					friction = self.rolling
 				end
@@ -350,7 +351,11 @@ end
 
 
 function get_decel_speed(self)
-		
+	if self.rolling then
+		return DECEL_GROUND_ROLL * self.input_lr
+	else
+		return DECEL_GROUND_RUN * self.input_lr
+	end
 end
 
 
