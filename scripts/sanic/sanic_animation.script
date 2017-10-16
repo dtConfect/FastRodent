@@ -14,14 +14,17 @@ local ANIM_HASH_TURN = {hash("turn"), hash("turn_flipped")}
 local ANIM_HASH_DUCK = {hash("duck"), hash("duck_flipped")}
 local ANIM_HASH_LOOK_UP = {hash("look_up"), hash("look_up_flipped")}
 
+local ANIM_HASH_RUN_SLOW_SLOW_OVER = {hash("run_slow_slow_over"), hash("run_slow_slow_over_flipped")}
 local ANIM_HASH_RUN_SLOW_OVER = {hash("run_slow_over"), hash("run_slow_over_flipped")}
 local ANIM_HASH_RUN_FAST_OVER = {hash("run_fast_over"), hash("run_fast_over_flipped")}
 
+local GROUND_MODE_RUN_ANIMS_SLOW_SLOW = {ANIM_HASH_RUN_SLOW_SLOW_OVER , nil, nil, nil, nil}
 local GROUND_MODE_RUN_ANIMS_SLOW = {ANIM_HASH_RUN_SLOW_OVER, nil, nil, nil}
 local GROUND_MODE_RUN_ANIMS_FAST = {ANIM_HASH_RUN_FAST_OVER, nil, nil, nil}
 
 local GROUND_SPEED_RUN_ANIM_THRESHOLDS =	{
-												{threshold = 0.1, anims = GROUND_MODE_RUN_ANIMS_SLOW},
+												{threshold = 0.1, anims = GROUND_MODE_RUN_ANIMS_SLOW_SLOW},
+												{threshold = 4.0, anims = GROUND_MODE_RUN_ANIMS_SLOW},
 												{threshold = 6.0, anims = GROUND_MODE_RUN_ANIMS_FAST}
 											}
 

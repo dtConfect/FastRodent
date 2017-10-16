@@ -133,6 +133,24 @@ animations {
   flip_vertical: 0
 }
 animations {
+  id: "run_slow_slow_over"
+  start_tile: 15
+  end_tile: 22
+  playback: PLAYBACK_LOOP_FORWARD
+  fps: 15
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
+  id: "run_slow_slow_over_flipped"
+  start_tile: 15
+  end_tile: 22
+  playback: PLAYBACK_LOOP_FORWARD
+  fps: 15
+  flip_horizontal: 1
+  flip_vertical: 0
+}
+animations {
   id: "spring"
   start_tile: 67
   end_tile: 67
