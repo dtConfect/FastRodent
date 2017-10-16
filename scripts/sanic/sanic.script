@@ -15,23 +15,30 @@ local SPRITE_ANGLE_2_RAD = SPRITE_ANGLES/(2*math.pi)
 local PER_FRAME_2_PER_SECOND = 60
 
 local ACCEL_GROUND = PER_FRAME_2_PER_SECOND*0.046875
-local ACCEL_AIR = PER_FRAME_2_PER_SECOND*0.046875
+local ACCEL_AIR = ACCEL_GROUND*2.0
 
 local DECEL_GROUND_RUN = PER_FRAME_2_PER_SECOND*0.5
 local FRICTION_GROUND_RUN = PER_FRAME_2_PER_SECOND*0.046875
 
 local DECEL_GROUND_ROLL = PER_FRAME_2_PER_SECOND*0.125
-local FRICTION_GROUND_ROLL = FRICTION_GROUND_RUN*0.5
 
 local TOP_SPEED_GROUND_RUN = PER_FRAME_2_PER_SECOND*6
 local TOP_SPEED_GROUND_ROLL = PER_FRAME_2_PER_SECOND*16
+local TOP_SPEED_AIR_X = PER_FRAME_2_PER_SECOND*6
 local TOP_SPEED_AIR_Y = 16
 
-local MIN_ROLLING_GSP = 0.53125
+-- Air drag
+local AIR_DRAG_X_THRESHOLD_ABS = 0.125
+local AIR_DRAG_Y_THRESHOLD = -4
+local AIR_DRAG_FACTOR = 0.96875
+
+--local MIN_ROLLING_GSP = 0.53125
+local MIN_ROLLING_GSP = 1.03125 -- Sonic 3 and Knuckles
 
 local GRAVITY_AIR = -0.21875
 
-local JUMP_INITIAL_SPEED = 5
+local JUMP_INITIAL_SPEED = 6.5
+local JUMP_SHORT_SPEED = 4
 
 local TILEMAP_URL = "/level#tilemap"
 
@@ -52,8 +59,11 @@ go.property("ground_angle",0)
 go.property("ground_mode",0)
 go.property("flipped",false)
 go.property("ducking",false)
+go.property("jumped",false)			-- Set to true while sonic is in the air following a jump.
 go.property("looking_up",false)
-go.property("rolling",true)
+go.property("rolling",false)
+go.property("decelerating",false)
+go.property("turned",false)
 go.property("gsp",0)
 go.property("xsp",0)
 go.property("ysp",0)
@@ -128,18 +138,17 @@ function update_ground(self, dt)
 	
 	--print("update_ground")
 	
-	-- Don't allow movement if ducking or looking up
-	if self.ducking ~= true and self.looking_up ~= true then
-		if self.input_lr ~= 0 then
-			-- TODO: Deceleration and rolling friction
-
-			-- Apply input to Ground Speed
-			self.gsp = self.gsp + (ACCEL_GROUND * dt * self.input_lr)
-		else
-			-- Apply friction and deceleration
-			apply_friction(self, dt)
-		end
+	local was_decelerating = self.decelerating
+	self.decelerating = false
+	
+	apply_directional_input(self, dt)
+	
+	if was_decelerating == true and self.decelerating == false then
+		self.turned = true
+	else
+		self.turned = false
 	end
+	
 	
 	-- Limit top speed
 	apply_top_speed(self)
@@ -149,18 +158,6 @@ function update_ground(self, dt)
 	
 	-- Apply gravity
 	apply_gravity(self, dt)
-	
-	-- Attempt jump
-	if self.input_jump_pressed == true then
-		local ground_angle = get_ground_angle(self)
-		self.xsp = self.xsp + JUMP_INITIAL_SPEED * -math.sin(ground_angle)
-		self.ysp = self.ysp + JUMP_INITIAL_SPEED * math.cos(ground_angle)
-		
-		self.gsp = 0	
-		
-		self.sanic_state = mod_sanic_state.SANIC_STATE_AIR
-		self.rolling = true
-	end
 	
 	-- Allow ducking or rolling
 	self.ducking = false
@@ -193,7 +190,21 @@ function update_ground_post(self, dt)
 	
 	-- Stop rolling if we stop moving
 	if self.gsp == 0 then
+		print("stop roll")
 		self.rolling = false
+	end
+	
+	-- Attempt jump - do this in post so the player has chance to do a very short jump
+	if self.input_jump_pressed == true then
+		local ground_angle = get_ground_angle(self)
+		self.xsp = self.xsp + JUMP_INITIAL_SPEED * -math.sin(ground_angle)
+		self.ysp = self.ysp + JUMP_INITIAL_SPEED * math.cos(ground_angle)
+		
+		self.gsp = 0	
+		
+		self.sanic_state = mod_sanic_state.SANIC_STATE_AIR
+		self.rolling = true
+		self.jumped = true
 	end
 	
 	-- Set flipped status based upon gsp
@@ -214,6 +225,16 @@ function update_air(self, dt)
 	-- Apply gravity	
 	apply_gravity(self, dt)
 	
+	-- Apply drag
+	apply_air_drag(self, dt)
+	
+	-- Limit jump speed
+	if self.jumped == true and self.input_jump ~= true then
+		if self.ysp > JUMP_SHORT_SPEED then
+			self.ysp = JUMP_SHORT_SPEED
+		end
+	end
+	
 	self.ysp = math.min(self.ysp, TOP_SPEED_AIR_Y)
 	self.ysp = math.max(self.ysp, -TOP_SPEED_AIR_Y)
 end
@@ -224,6 +245,7 @@ function update_air_post(self, dt)
 	if self.on_ground and self.on_ground.touched then
 		self.sanic_state = mod_sanic_state.SANIC_STATE_GROUND	
 		self.rolling = self.input_down
+		self.jumped = false
 		
 		self.gsp = self.xsp
 		apply_ground_speed(self)
@@ -275,14 +297,86 @@ end
 
 
 
+function apply_directional_input(self, dt)
+	-- Don't allow movement if ducking or looking up
+	if self.ducking ~= true and self.looking_up ~= true then
+		local friction = true
+		
+		if self.input_lr ~= 0 then
+			
+			local applied_accel = 0
+			
+			if self.gsp == 0 then
+				-- If we're not already moving, directional input always means accelerate
+				applied_accel = get_accel_speed(self)
+				friction = false
+			else
+				-- When there's some directional input while we're already moving
+				local gsp_sign = mod_utils.sign(self.gsp)
+				local input_sign = mod_utils.sign(self.input_lr)
+				
+				if gsp_sign == input_sign then
+					-- If the input is in the same direction as our current gsp	
+					-- Simply accelerate
+					applied_accel = get_accel_speed(self)
+					friction = false
+				else
+					-- If the input is in the opposite direction to our current gsp
+					-- Then decelerate
+					applied_accel = (DECEL_GROUND_RUN * self.input_lr)
+					self.decelerating = true
+					friction = self.rolling
+				end
+			end
+			
+			self.gsp = self.gsp + applied_accel*dt
+		end
+		
+		if friction == true then
+			-- Apply friction and deceleration
+			apply_friction(self, dt)
+		end
+	end
+end
+
+
+function get_accel_speed(self)
+	if self.rolling then
+		return 0
+	else
+		return ACCEL_GROUND * self.input_lr
+	end
+end
+
+
+function get_decel_speed(self)
+		
+end
+
+
+
 function apply_gravity(self, dt)
 	self.ysp = self.ysp + GRAVITY_AIR
 end
 
 
 
+function apply_air_drag(self, dt)
+	if self.ysp < AIR_DRAG_Y_THRESHOLD and math.abs(self.xsp) >= AIR_DRAG_X_THRESHOLD_ABS then
+		self.xsp = self.xsp * AIR_DRAG_FACTOR
+	end	
+end
+
+
+
 function apply_friction(self, dt)
 	local accel_this_frame = FRICTION_GROUND_RUN * dt
+	
+	-- Half friction when rolling
+	if self.rolling == true then
+		accel_this_frame = accel_this_frame * 0.5
+	end
+	
 	if math.abs(self.gsp) <= accel_this_frame then
 		-- Stop
 		self.gsp = 0

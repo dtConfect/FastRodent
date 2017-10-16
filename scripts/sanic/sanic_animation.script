@@ -9,6 +9,8 @@ local FLIPPED = 2
 
 local ANIM_HASH_STAND = {hash("stand"), hash("stand_flipped")}
 local ANIM_HASH_ROLL = {hash("roll"), hash("roll")} 
+local ANIM_HASH_DECELERATING = {hash("decel"), hash("decel_flipped")}
+local ANIM_HASH_TURN = {hash("turn"), hash("turn_flipped")}
 local ANIM_HASH_DUCK = {hash("duck"), hash("duck_flipped")}
 local ANIM_HASH_LOOK_UP = {hash("look_up"), hash("look_up_flipped")}
 
@@ -19,8 +21,8 @@ local GROUND_MODE_RUN_ANIMS_SLOW = {ANIM_HASH_RUN_SLOW_OVER, nil, nil, nil}
 local GROUND_MODE_RUN_ANIMS_FAST = {ANIM_HASH_RUN_FAST_OVER, nil, nil, nil}
 
 local GROUND_SPEED_RUN_ANIM_THRESHOLDS =	{
-												{threshold = 0.35, anims = GROUND_MODE_RUN_ANIMS_SLOW},
-												{threshold = 4.0, anims = GROUND_MODE_RUN_ANIMS_FAST}
+												{threshold = 0.1, anims = GROUND_MODE_RUN_ANIMS_SLOW},
+												{threshold = 6.0, anims = GROUND_MODE_RUN_ANIMS_FAST}
 											}
 
 function init(self)
@@ -69,9 +71,16 @@ function do_refresh_anim(self)
 	local ducking = go.get("#sanic", "ducking")
 	local looking_up = go.get("#sanic", "looking_up")
 	
+	local decelerating = go.get("#sanic", "decelerating")
+	local turned = go.get("#sanic", "turned")
+	
 	
 	if rolling then
 		play_animation_flipped(self, ANIM_HASH_ROLL)
+	elseif decelerating then
+		play_animation_flipped(self, ANIM_HASH_DECELERATING)
+	elseif turned then
+		play_animation_flipped(self, ANIM_HASH_TURN)
 	elseif ducking then
 		print("duck")
 		play_animation_flipped(self, ANIM_HASH_DUCK)
