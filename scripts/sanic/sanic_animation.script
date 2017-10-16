@@ -25,16 +25,8 @@ local GROUND_SPEED_RUN_ANIM_THRESHOLDS =	{
 
 function init(self)
 	
-	self.flipped = nil
-	
-	self.sanic_state = nil
-	self.gsp = nil
-	
-	self.rolling = nil
-	self.ducking = nil
-	self.looking_up = nil
-	
-	self.last_set_ground_speed = nil
+	self.flipped = false
+	self.last_set_animation = nil
 	
 end
 
@@ -44,35 +36,11 @@ function final(self)
 end
 
 function update(self, dt)
+	self.flipped = UNFLIPPED
+	if go.get("#sanic", "flipped") == true then self.flipped = FLIPPED end
+	
 	-- Update animation state
-	local flipped = UNFLIPPED
-	if go.get("#sanic", "flipped") == true then flipped = FLIPPED end
-	
-	local sanic_state = go.get("#sanic", "sanic_state")
-	local gsp = go.get("#sanic", "gsp")
-	
-	local rolling = go.get("#sanic", "rolling")
-	local ducking = go.get("#sanic", "ducking")
-	local looking_up = go.get("#sanic", "looking_up")
-	
-	-- TODO: Drive this from events instead
-	local refresh_anim =	self.flipped ~= flipped or
-							self.sanic_state ~= sanic_state or
-							(self.gsp ~= gsp and rolling == false) or
-							self.rolling ~= rolling or
-							self.ducking ~= ducking or
-							self.looking_up ~= looking_up
-							
-	self.flipped = flipped
-	self.sanic_state = sanic_state
-	self.gsp = gsp
-	self.rolling = rolling
-	self.ducking = ducking
-	self.looking_up = looking_up
-							
-	if refresh_anim == true then
-		do_refresh_anim(self)
-	end						
+	do_refresh_anim(self)					
 end
 
 
@@ -94,35 +62,29 @@ end
 
 
 function do_refresh_anim(self)
-	--if self.sanic_state == mod_sanic_state.SANIC_STATE_AIR then
-		
-		--play_animation_flipped(self, ANIM_HASH_ROLL)
-		
-	--elseif self.sanic_state == mod_sanic_state.SANIC_STATE_GROUND then
-		if self.rolling then
-			play_animation_flipped(self, ANIM_HASH_ROLL)
+	local sanic_state = go.get("#sanic", "sanic_state")
+	local gsp = go.get("#sanic", "gsp")
+	
+	local rolling = go.get("#sanic", "rolling")
+	local ducking = go.get("#sanic", "ducking")
+	local looking_up = go.get("#sanic", "looking_up")
+	
+	
+	if rolling then
+		play_animation_flipped(self, ANIM_HASH_ROLL)
+	elseif ducking then
+		print("duck")
+		play_animation_flipped(self, ANIM_HASH_DUCK)
+	elseif looking_up then
+		play_animation_flipped(self, ANIM_HASH_LOOK_UP)
+	else
+		local gsp_anim = get_ground_speed_animation(gsp)
+		if gsp_anim ~= nil then
+			play_animation_flipped(self, gsp_anim[mod_ground_mode.SANIC_GROUND_MODE_OVER])
 		else
-			if self.ducking then
-				play_animation_flipped(self, ANIM_HASH_DUCK)
-			elseif self.looking_up then
-				play_animation_flipped(self, ANIM_HASH_LOOK_UP)
-			elseif self.rolling then
-				play_animation_flipped(self, ANIM_HASH_ROLL)
-			else
-				local gsp_anim = get_ground_speed_animation(self.gsp)
-				if gsp_anim ~= nil then
-					if gsp_anim ~= self.last_set_ground_speed then
-						play_animation_flipped(self, gsp_anim[mod_ground_mode.SANIC_GROUND_MODE_OVER])
-						self.last_set_ground_speed = gsp_anim
-					end
-				else
-					play_animation_flipped(self, ANIM_HASH_STAND)	
-					self.last_set_ground_speed = nil
-				end
-			end
+			play_animation_flipped(self, ANIM_HASH_STAND)	
 		end
-		
-	--end
+	end
 end
 
 function on_message(self, message_id, message, sender)
@@ -140,12 +102,16 @@ function on_reload(self)
 	-- Remove this function if not needed
 end
 
-
-function play_animation(anim_hash)
-	--print(anim_hash)
-	msg.post("#sprite", "play_animation", {id = anim_hash})
+function play_animation(self, anim_hash, force)
+	force = force or false
+	
+	print(anim_hash)
+	if force or self.last_set_animation ~= anim_hash then
+		msg.post("#sprite", "play_animation", {id = anim_hash})
+		self.last_set_animation = anim_hash
+	end
 end
 
-function play_animation_flipped(self, anim_hash_group)
-	play_animation(anim_hash_group[self.flipped])
+function play_animation_flipped(self, anim_hash_group, force)
+	play_animation(self, anim_hash_group[self.flipped], force)
 end
