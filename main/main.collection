@@ -3,8 +3,8 @@ instances {
   id: "sanic"
   prototype: "/sanic/sanic.go"
   position {
-    x: 131.0
-    y: 163.0
+    x: 416.164
+    y: 299.382
     z: 0.0
   }
   rotation {

@@ -43,7 +43,7 @@ local JUMP_SHORT_SPEED = 4
 
 local TILEMAP_URL = "/level#tilemap"
 
-local TILE_DATA_PATH = "/resources/tiles/tile_black.json"
+local TILE_DATA_PATH = "/resources/tiles/gen_tile_black.json"
 
 function load_tile_data(filename)
 	local filedata = sys.load_resource(filename)
@@ -522,7 +522,7 @@ function check_terrain(self)
 			end
 			
 			self.on_ground = highest_touched
-			self.ground_angle = TILE_DATA[self.on_ground.tile].angle[self.ground_mode]
+			self.ground_angle = TILE_DATA[tostring(self.on_ground.tile)].angle[self.ground_mode]
 		else
 			break
 		end
@@ -545,7 +545,7 @@ function get_ground_under_sensor(self, sensor_data)
 	if sensor_tile then
 		
 		-- Get data associated with the tile type and check that it is solid
-		local sensor_tile_data = TILE_DATA[sensor_tile]
+		local sensor_tile_data = TILE_DATA[tostring(sensor_tile)]
 		
 		if sensor_tile_data and sensor_tile_data.solid == true then
 			
@@ -611,7 +611,7 @@ end
 -- Set the game object rotation
 function set_sprite_angle(self)
 	if self.on_ground then
-		local tile_data = TILE_DATA[self.on_ground.tile]
+		local tile_data = TILE_DATA[tostring(self.on_ground.tile)]
 		
 		local angle = get_sprite_angle_for_angle(tile_data.angle[self.ground_mode])	
 		
