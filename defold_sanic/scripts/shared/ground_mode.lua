@@ -27,19 +27,8 @@ end
 M.SANIC_GM_UP = {vmath.vector3(0,1,0), vmath.vector3(-1,0,0), vmath.vector3(0,-1,0), vmath.vector3(1,0,0)}
 M.SANIC_GM_RIGHT = {vmath.vector3(1,0,0), vmath.vector3(0,1,0), vmath.vector3(-1,0,0), vmath.vector3(0,-1,0)}
 
-M.BASE_ANGLE = {0.0, math.pi*0.5, math.pi, math.pi*1.5}
-M.SWITCH_ANGLE = {math.rad(60), math.rad(30), math.rad(60), math.rad(30)}
-
-
-function M.get_base_angle(ground_mode)
-	return M.BASE_ANGLE[ground_mode]	
-end
-
-
-function M.get_switch_angle(ground_mode)
-	return M.SWITCH_ANGLE[ground_mode]	
-end
-
+M.BIAS_SIZE = -1
+M.SANIC_FLOOR_SENSOR_BIAS = {vmath.vector3(0,0,0),vmath.vector3(M.BIAS_SIZE,0,0),vmath.vector3(0,M.BIAS_SIZE,0),vmath.vector3(0,0,0)}
 
 function M.wrap_ground_mode(ground_mode)
 	return mod_utils.wrap(ground_mode, M.SANIC_GROUND_MODE_OVER, M.SANIC_GROUND_MODE_RIGHT)	

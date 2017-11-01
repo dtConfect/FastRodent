@@ -120,9 +120,6 @@ function do_refresh_anim(self)
 	
 	do_refresh_debug_sprite(self)
 	
-	--rot_quat = vmath.quat_rotation_z(mod_ground_mode.BASE_ANGLE[ground_mode])
-	--go.set_rotation(rot_quat)
-	
 	-- We only have run animations for four orientations, whereas we need them for eight
 	-- To get the other four we flip the sprites we have both horizontally and vertically
 	-- if the ground angle is in the 4th to 7th divison

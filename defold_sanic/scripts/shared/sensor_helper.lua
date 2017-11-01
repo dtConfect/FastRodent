@@ -12,7 +12,7 @@ local M = {}
 
 -- Sensor data
 M.POS_LOW = -4
-M.POS_BOTTOM = -20
+M.POS_BOTTOM = -21
 
 M.POS_LEFT = -10
 M.POS_LEFT_S = -9
@@ -54,7 +54,7 @@ M.SENSOR_COLLECTION_GROUND = {M.SENSOR_DATA_LEFT_BOTTOM, M.SENSOR_DATA_RIGHT_BOT
 
 
 function M.copy_sensor_data(sensor_data)
-	return {offset = sensor_data.offset, pos = sensor_data.pos, ground_mode = sensor_data.ground_mode}	
+	return {offset = sensor_data.offset, pos = sensor_data.pos, ground_mode = sensor_data.ground_mode}
 end
 
 function M.orient_sensor_offset(sensor_data, character_ground_mode)

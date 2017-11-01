@@ -154,7 +154,7 @@ function update_ground(self, dt)
 	apply_ground_speed(self)	
 	
 	-- Apply gravity
-	apply_gravity(self, dt)
+	--apply_gravity(self, dt)
 	
 	-- Allow ducking or rolling
 	self.ducking = false
@@ -624,9 +624,18 @@ function check_terrain(self)
 		end
 	end
 	
-	if self.on_ground == nil then
+	
+	-- Always sink us one into the ground
+	if self.on_ground ~= nil then
+		local ground_up = mod_ground_mode.SANIC_GM_UP[self.on_ground.sensor.ground_mode]
+		local correction = ground_up*-1.0
+		print("Correction:\t", correction)
+
+		my_pos = my_pos + correction
+		go.set_position(my_pos)	
+	else
 		print("No ground!!!")
-		end
+	end
 end	
 
 
@@ -636,7 +645,7 @@ function get_ground_under_sensor(self, sensor_data)
 	-- Set up the return struct
 	local ret = {solid = false, touched = false, penetration = 0, tile = nil, sensor = mod_sensor_helper.copy_sensor_data(sensor_data)}
 	
-	local sensor_tile_pos = world_to_tile_pos(sensor_data.pos)
+	local sensor_tile_pos = world_to_tile_pos_with_bias(sensor_data.pos, self.ground_mode)
 	local sensor_sub_tile_pos = sensor_data.pos-(sensor_tile_pos*mod_tile_helper.TILE_SIZE)
 	
 	-- Get the tile type under the sensor
@@ -670,10 +679,15 @@ function get_ground_under_sensor(self, sensor_data)
 	return ret
 end
 
-
+function world_to_tile_pos_with_bias(world_pos, ground_mode)
+	-- tile_bias allows us to offset the world_pos given by -1 in x and/or y, in order to ensure that a coordinate on the boundary of two tiles will prefer the lower one instead of the higher.
+	local bias = mod_ground_mode.SANIC_FLOOR_SENSOR_BIAS[ground_mode]
+	return world_to_tile_pos(world_pos + bias, ground_mode)
+	
+end
 
 function world_to_tile_pos(world_pos)
-	return vmath.vector3(math.floor(world_pos.x/mod_tile_helper.TILE_SIZE), math.floor(world_pos.y/mod_tile_helper.TILE_SIZE), 0)	
+	return vmath.vector3(math.floor((world_pos.x)/mod_tile_helper.TILE_SIZE), math.floor((world_pos.y)/mod_tile_helper.TILE_SIZE), 0)	
 end
 
 
