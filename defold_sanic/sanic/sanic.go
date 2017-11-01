@@ -44,7 +44,7 @@ components {
   }
 }
 embedded_components {
-  id: "spriteTemp"
+  id: "sprite_debug_over"
   type: "sprite"
   data: "tile_set: \"/sanic/images/temp.atlas\"\n"
   "default_animation: \"tempStand\"\n"
@@ -81,5 +81,65 @@ embedded_components {
     y: 0.0
     z: 0.0
     w: 1.0
+  }
+}
+embedded_components {
+  id: "sprite_debug_left"
+  type: "sprite"
+  data: "tile_set: \"/sanic/images/temp.atlas\"\n"
+  "default_animation: \"tempStand\"\n"
+  "material: \"/builtins/materials/sprite.material\"\n"
+  "blend_mode: BLEND_MODE_ALPHA\n"
+  ""
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.4
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.70710677
+    w: 0.70710677
+  }
+}
+embedded_components {
+  id: "sprite_debug_under"
+  type: "sprite"
+  data: "tile_set: \"/sanic/images/temp.atlas\"\n"
+  "default_animation: \"tempStand\"\n"
+  "material: \"/builtins/materials/sprite.material\"\n"
+  "blend_mode: BLEND_MODE_ALPHA\n"
+  ""
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.4
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 1.0
+    w: 6.123234E-17
+  }
+}
+embedded_components {
+  id: "sprite_debug_right"
+  type: "sprite"
+  data: "tile_set: \"/sanic/images/temp.atlas\"\n"
+  "default_animation: \"tempStand\"\n"
+  "material: \"/builtins/materials/sprite.material\"\n"
+  "blend_mode: BLEND_MODE_ALPHA\n"
+  ""
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.4
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.70710677
+    w: -0.70710677
   }
 }

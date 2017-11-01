@@ -6,6 +6,8 @@ local mod_sanic_state = require "scripts.sanic.sanic_state"
 local UNFLIPPED = 1
 local FLIPPED = 2
 
+local SPRITE_NAME = "#sprite"
+local DEBUG_SPRITE_NAME = {"#sprite_debug_over", "#sprite_debug_left", "#sprite_debug_under", "#sprite_debug_right"}
 
 local ANIM_HASH_STAND = {hash("stand"), hash("stand_flipped")}
 local ANIM_HASH_ROLL = {hash("roll"), hash("roll")} 
@@ -14,16 +16,28 @@ local ANIM_HASH_TURN = {hash("turn"), hash("turn_flipped")}
 local ANIM_HASH_DUCK = {hash("duck"), hash("duck_flipped")}
 local ANIM_HASH_LOOK_UP = {hash("look_up"), hash("look_up_flipped")}
 
-local ANIM_HASH_RUN_SLOW_SLOW_OVER = {hash("run_slow_slow_over"), hash("run_slow_slow_over_flipped")}
-local ANIM_HASH_RUN_SLOW_OVER = {hash("run_slow_over"), hash("run_slow_over_flipped")}
-local ANIM_HASH_RUN_FAST_OVER = {hash("run_fast_over"), hash("run_fast_over_flipped")}
+local ANIM_HASH_RUN_SLOWEST_0 = {hash("run_slowest_0"), hash("run_slowest_0_flipped")}
+local ANIM_HASH_RUN_SLOW_0 = {hash("run_slow_0"), hash("run_slow_0_flipped")}
+local ANIM_HASH_RUN_FAST_0 = {hash("run_fast_0"), hash("run_fast_0_flipped")}
 
-local GROUND_MODE_RUN_ANIMS_SLOW_SLOW = {ANIM_HASH_RUN_SLOW_SLOW_OVER , nil, nil, nil, nil}
-local GROUND_MODE_RUN_ANIMS_SLOW = {ANIM_HASH_RUN_SLOW_OVER, nil, nil, nil}
-local GROUND_MODE_RUN_ANIMS_FAST = {ANIM_HASH_RUN_FAST_OVER, nil, nil, nil}
+local ANIM_HASH_RUN_SLOWEST_45 = {hash("run_slowest_45"), hash("run_slowest_45_flipped")}
+local ANIM_HASH_RUN_SLOW_45 = {hash("run_slow_45"), hash("run_slow_45_flipped")}
+local ANIM_HASH_RUN_FAST_45 = {hash("run_fast_45"), hash("run_fast_45_flipped")}
+
+local ANIM_HASH_RUN_SLOWEST_90 = {hash("run_slowest_90"), hash("run_slowest_90_flipped")}
+local ANIM_HASH_RUN_SLOW_90 = {hash("run_slow_90"), hash("run_slow_90_flipped")}
+local ANIM_HASH_RUN_FAST_90 = {hash("run_fast_90"), hash("run_fast_90_flipped")}
+
+local ANIM_HASH_RUN_SLOWEST_135 = {hash("run_slowest_135"), hash("run_slowest_135_flipped")}
+local ANIM_HASH_RUN_SLOW_135 = {hash("run_slow_135"), hash("run_slow_135_flipped")}
+local ANIM_HASH_RUN_FAST_135 = {hash("run_fast_135"), hash("run_fast_135_flipped")}
+
+local GROUND_MODE_RUN_ANIMS_SLOWEST = {ANIM_HASH_RUN_SLOWEST_0 , ANIM_HASH_RUN_SLOWEST_45, ANIM_HASH_RUN_SLOWEST_90, ANIM_HASH_RUN_SLOWEST_135}
+local GROUND_MODE_RUN_ANIMS_SLOW = {ANIM_HASH_RUN_SLOW_0, ANIM_HASH_RUN_SLOW_45, ANIM_HASH_RUN_SLOW_90, ANIM_HASH_RUN_SLOW_135}
+local GROUND_MODE_RUN_ANIMS_FAST = {ANIM_HASH_RUN_FAST_0, ANIM_HASH_RUN_FAST_45, ANIM_HASH_RUN_FAST_90, ANIM_HASH_RUN_FAST_135}
 
 local GROUND_SPEED_RUN_ANIM_THRESHOLDS =	{
-												{threshold = 0.1, anims = GROUND_MODE_RUN_ANIMS_SLOW_SLOW},
+												{threshold = 0.1, anims = GROUND_MODE_RUN_ANIMS_SLOWEST},
 												{threshold = 4.0, anims = GROUND_MODE_RUN_ANIMS_SLOW},
 												{threshold = 6.0, anims = GROUND_MODE_RUN_ANIMS_FAST}
 											}
@@ -65,8 +79,35 @@ function get_ground_speed_animation(gsp)
 end
 
 
+local SPRITE_ANGLES = 8
+local SPRITE_ANGLE_2_RAD = (2*math.pi)/SPRITE_ANGLES
+local RAD_2_SPRITE_ANGLE = SPRITE_ANGLES/(2*math.pi)
+
+
+-- Returns the positive or negative integer corresponding to the nearest equal rotational division based on the number of rotated sprites
+function get_sprite_division_angle_for_angle(angle)
+	local offset_angle = angle +(SPRITE_ANGLE_2_RAD*0.5)
+	return math.floor(RAD_2_SPRITE_ANGLE * offset_angle)
+end
+
+
+-- Returns the angle reduced to the nearest equal rotational division based on the number of rotated sprites
+function get_sprite_aligned_angle_for_angle(angle)
+	return SPRITE_ANGLE_2_RAD * get_sprite_division_angle_for_angle(angle)
+end
+
+
+
+function get_run_rot_division(angle)
+	return mod_utils.wrap(get_sprite_division_angle_for_angle(angle) +1, 1, SPRITE_ANGLES)
+end
+
+
 
 function do_refresh_anim(self)
+	local ground_mode = go.get("#sanic", "ground_mode")
+	local ground_angle = go.get("#sanic", "ground_angle")
+	
 	local sanic_state = go.get("#sanic", "sanic_state")
 	local gsp = go.get("#sanic", "gsp")
 	
@@ -77,6 +118,16 @@ function do_refresh_anim(self)
 	local decelerating = go.get("#sanic", "decelerating")
 	local turned = go.get("#sanic", "turned")
 	
+	do_refresh_debug_sprite(self)
+	
+	--rot_quat = vmath.quat_rotation_z(mod_ground_mode.BASE_ANGLE[ground_mode])
+	--go.set_rotation(rot_quat)
+	
+	-- We only have run animations for four orientations, whereas we need them for eight
+	-- To get the other four we flip the sprites we have both horizontally and vertically
+	-- if the ground angle is in the 4th to 7th divison
+	local run_double_flip = false
+	
 	
 	if rolling then
 		play_animation_flipped(self, ANIM_HASH_ROLL)
@@ -85,17 +136,42 @@ function do_refresh_anim(self)
 	elseif turned then
 		play_animation_flipped(self, ANIM_HASH_TURN)
 	elseif ducking then
-		print("duck")
 		play_animation_flipped(self, ANIM_HASH_DUCK)
 	elseif looking_up then
 		play_animation_flipped(self, ANIM_HASH_LOOK_UP)
 	else
 		local gsp_anim = get_ground_speed_animation(gsp)
 		if gsp_anim ~= nil then
-			play_animation_flipped(self, gsp_anim[mod_ground_mode.SANIC_GROUND_MODE_OVER])
+			local run_rot_division = get_run_rot_division(ground_angle)
+			--print("div:\t",run_rot_division)
+			if run_rot_division > 4 then
+				run_rot_division = run_rot_division-4
+				--print("div_r:\t",run_rot_division)
+				run_double_flip = true
+			end
+			play_animation_flipped(self, gsp_anim[run_rot_division])
 		else
 			play_animation_flipped(self, ANIM_HASH_STAND)	
 		end
+	end
+	
+	
+	sprite.set_vflip(SPRITE_NAME, run_double_flip)
+	sprite.set_hflip(SPRITE_NAME, run_double_flip)
+end
+
+
+function do_refresh_debug_sprite(self)
+	local ground_mode = go.get("#sanic", "ground_mode")
+	
+	for i,v in ipairs(DEBUG_SPRITE_NAME) do
+		if i == ground_mode then
+			go.set(v, "scale.x", 1)
+			go.set(v, "scale.y", 1)
+		else
+			go.set(v, "scale.x", 0)
+			go.set(v, "scale.y", 0)
+		end	
 	end
 end
 
@@ -117,7 +193,7 @@ end
 function play_animation(self, anim_hash, force)
 	force = force or false
 	
-	print(anim_hash)
+	--print("Playing animation:\t",anim_hash)
 	if force or self.last_set_animation ~= anim_hash then
 		msg.post("#sprite", "play_animation", {id = anim_hash})
 		self.last_set_animation = anim_hash

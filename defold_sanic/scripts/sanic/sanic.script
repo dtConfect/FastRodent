@@ -8,10 +8,6 @@ local mod_sanic_state = require "scripts.sanic.sanic_state"
 --local DEBUG_DRAW_SENSORS = true
 --local DEBUG_VERBOSE_SENSORS = true
 
-local SPRITE_ANGLES = 8
-local RAD_2_SPRITE_ANGLE = (2*math.pi)/SPRITE_ANGLES
-local SPRITE_ANGLE_2_RAD = SPRITE_ANGLES/(2*math.pi)
-
 -- We define a lot of values here as per frame (assuming 60 fps).
 local PER_FRAME_2_PER_SECOND = 60
 
@@ -36,10 +32,13 @@ local AIR_DRAG_FACTOR = 0.96875
 --local MIN_ROLLING_GSP = 0.53125
 local MIN_ROLLING_GSP = 1.03125 -- Sonic 3 and Knuckles
 
-local GRAVITY_AIR = -0.21875
+local GRAVITY_AIR = PER_FRAME_2_PER_SECOND*-0.21875
 
 local JUMP_INITIAL_SPEED = 6.5
 local JUMP_SHORT_SPEED = 4
+
+-- rotation in radiants per second, towards zero, when in the air
+local AUTO_LEVEL_SPEED = math.pi*1.0
 
 local TILEMAP_URL = "/level#tilemap"
 
@@ -116,9 +115,6 @@ function update(self, dt)
 		update_air_post(self, dt)	
 	end
 	
-	-- Visual updates
-	--set_sprite_angle(self)
-	
 	-- Blank inputs
 	blank_inputs(self)
 end
@@ -186,18 +182,18 @@ end
 function update_ground_post(self, dt)
 	-- check if we should switch to air mode
 	if self.on_ground == nil then
-		self.sanic_state = mod_sanic_state.SANIC_STATE_AIR	
+		self.sanic_state = mod_sanic_state.SANIC_STATE_AIR
 	end
 	
 	-- Stop rolling if we stop moving
 	if self.gsp == 0 then
-		print("stop roll")
+		--print("stop roll")
 		self.rolling = false
 	end
 	
 	-- Attempt jump - do this in post so the player has chance to do a very short jump
 	if self.input_jump_pressed == true then
-		local ground_angle = get_ground_angle(self)
+		local ground_angle = get_ground_angle_absolute(self)
 		self.xsp = self.xsp + JUMP_INITIAL_SPEED * -math.sin(ground_angle)
 		self.ysp = self.ysp + JUMP_INITIAL_SPEED * math.cos(ground_angle)
 		
@@ -214,6 +210,8 @@ function update_ground_post(self, dt)
 	elseif self.gsp < 0 then
 		self.flipped = true
 	end
+	
+	try_mode_switch(self)
 end
 
 
@@ -238,6 +236,8 @@ function update_air(self, dt)
 	
 	self.ysp = math.min(self.ysp, TOP_SPEED_AIR_Y)
 	self.ysp = math.max(self.ysp, -TOP_SPEED_AIR_Y)
+	
+	apply_auto_level(self, dt)
 end
 
 
@@ -248,12 +248,54 @@ function update_air_post(self, dt)
 		self.rolling = self.input_down
 		self.jumped = false
 		
-		self.gsp = self.xsp
+		set_gsp_from_xsp_and_ysp(self)
+		
 		apply_ground_speed(self)
 		print("landed")
 	end
 end
 
+
+function set_gsp_from_xsp_and_ysp(self)
+	
+	-- Get ground angle
+	local ground_angle = get_ground_angle_absolute(self)
+	-- Put the angle in the range of -180 to 180, then get the absolute value - all the boundaries below are the same when mirrored
+	ground_angle = mod_utils.fwrap_half_rot_rad(ground_angle)
+	ground_angle_abs = math.abs(ground_angle)
+	
+	if self.ysp <= 0 then
+		-- Moving Downward
+		if ground_angle_abs <= 22.5 then
+			-- Set to x speed
+			self.gsp = self.xsp
+		elseif ground_angle_abs <= 45 then
+			-- Set to x speed if greater than y, otherwise to half y, scaled to angle
+			if math.abs(self.xsp) > self.ysp then
+				self.gsp = xsp
+			else
+				self.gsp = self.ysp*0.5*-mod_utils.sign(math.sin(ground_angle))
+			end
+		elseif ground_angle <= 90 then
+			-- Set to x speed if greater than y, otherwise to full y, scaled to angle
+			if math.abs(self.xsp) > self.ysp then
+				self.gsp = self.xsp	
+			else
+				self.gsp = self.ysp*-mod_utils.sign(sin(angle))
+			end
+		end
+	else
+		-- Moving Upward
+		if ground_angle_abs > 135 then
+			-- Reattach to the ceiling
+			self.gsp = self.ysp*-mod_utils.sign(math.sin(ground_angle))
+		elseif ground_angle_abs > 90 then
+			-- Hit head on ceiling and do not reattach
+			self.gsp = 0
+			self.ysp = 0
+		end 
+	end
+end
 
 
 function on_message(self, message_id, message, sender)
@@ -296,6 +338,25 @@ function on_reload(self)
 	-- Remove this function if not needed
 end
 
+
+function apply_auto_level(self, dt)
+	-- TODO: Rewrite this
+	--[[self.ground_angle = mod_utils.fwrap(self.ground_angle, -math.pi, math.pi)
+	print("Angle:\t",self.ground_angle)
+	local da = AUTO_LEVEL_SPEED * dt
+	
+	if da >= math.abs(self.ground_angle) then
+		self.ground_angle = 0
+	else
+		if self.ground_angle > 0 then
+			da = -da
+		end
+	
+		self.ground_angle = self.ground_angle + da	
+	end
+	
+	try_mode_switch(self)]]--
+end
 
 
 function apply_directional_input(self, dt)
@@ -361,7 +422,7 @@ end
 
 
 function apply_gravity(self, dt)
-	self.ysp = self.ysp + GRAVITY_AIR
+	self.ysp = self.ysp + (GRAVITY_AIR*dt)
 end
 
 
@@ -397,6 +458,28 @@ function apply_friction(self, dt)
 end
 
 
+function try_mode_switch(self)
+	
+	if self.sanic_state == mod_sanic_state.SANIC_STATE_GROUND then
+		local ground_angle = get_ground_angle_absolute(self)
+		local ground_mode = mod_ground_mode.get_division(ground_angle)
+	
+		print("ground_angle:\t", ground_angle, "ground_mode:\t", ground_mode)
+	
+		set_ground_mode(self, ground_mode)
+	end
+end
+
+
+function increment_ground_mode(self, delta)
+	local ground_mode = mod_ground_mode.wrap_ground_mode(self.ground_mode+delta)
+	set_ground_mode(ground_mode)
+end
+
+function set_ground_mode(self, ground_mode)
+	self.ground_mode = ground_mode	
+end
+
 
 function apply_top_speed(self)
 	self.gsp = math.min(self.gsp, TOP_SPEED_GROUND_RUN)
@@ -407,15 +490,17 @@ end
 
 function apply_ground_speed(self)
 	-- Get ground angle and use it to convert ground speed to x and y speed
-	local ground_angle = get_ground_angle(self)
+	local ground_angle = get_ground_angle_absolute(self)
+	
 	self.xsp = self.gsp * math.cos(ground_angle)
 	self.ysp = self.gsp * math.sin(ground_angle)
+	
 	--print("Applying ground speed results, gsp:\t", self.gsp, " x:\t", self.xsp, "\ty:zt", self.ysp)
 end
 
 
 
-function get_ground_angle(self)
+function get_ground_angle_absolute(self)
 	if self.sanic_state == mod_sanic_state.SANIC_STATE_GROUND then
 		return self.ground_angle
 	else
@@ -444,6 +529,7 @@ function check_terrain(self)
 
 		
 	-- Check each sensor in turn to see if it penetrates a wall, then move the game object till that sensor no longer does so
+	local wall_sensor_touched_floor = false
 	for i, v in pairs(wall_sensors) do
 		while true do
 			local ground_touched = get_ground_under_sensor(self, v)			
@@ -475,10 +561,21 @@ function check_terrain(self)
 				for i, v in pairs(wall_sensors) do
 					mod_sensor_helper.offset_sensor_pos(v, correction)
 				end
+				
+				-- Record if a wall sensor touches the floor
+				ground_touched_angle = TILE_DATA[tostring(ground_touched.tile)].angle
+				if mod_ground_mode.get_division(ground_touched_angle) == mod_ground_mode.SANIC_GROUND_MODE_OVER then
+					wall_sensor_touched_floor = true
+				end
 			else
 				break
 			end
 		end
+	end
+	
+	-- If our wall sensors touch the floor, make sure we switch ground modes
+	if wall_sensor_touched_floor then
+		set_ground_mode(self, mod_ground_mode.SANIC_GROUND_MODE_OVER)
 	end
 	
 	-- FLOOR
@@ -508,7 +605,6 @@ function check_terrain(self)
 		end
 		
 		if highest_touched ~= nil then
-			
 			-- Move away from penetration
 			local highest_touched_up = mod_ground_mode.SANIC_GM_UP[highest_touched.sensor.ground_mode]
 			
@@ -522,11 +618,15 @@ function check_terrain(self)
 			end
 			
 			self.on_ground = highest_touched
-			self.ground_angle = TILE_DATA[tostring(self.on_ground.tile)].angle[self.ground_mode]
+			self.ground_angle = TILE_DATA[tostring(self.on_ground.tile)].angle
 		else
 			break
 		end
 	end
+	
+	if self.on_ground == nil then
+		print("No ground!!!")
+		end
 end	
 
 
@@ -550,7 +650,6 @@ function get_ground_under_sensor(self, sensor_data)
 		if sensor_tile_data and sensor_tile_data.solid == true then
 			
 			-- Get the heightmap used for this sensor
-			-- TODO: This won't work when we start walking on walls and stuff, because we haven't combined the character ground mode with the sensor's
 			local heightmap = sensor_tile_data.heightmap[sensor_data.ground_mode]
 			
 			local heightmap_coords = mod_ground_mode.separate_heightmap_coords(sensor_sub_tile_pos, sensor_data.ground_mode)
@@ -587,36 +686,5 @@ function get_sub_tile_height(tile_relative_pos, tile_data)
 	return tile_data.heightmap[mod_ground_mode.SANIC_GROUND_MODE_OVER][math.floor(tile_relative_pos.x)]
 end
 
-
-
--- Returns the ground mode corresponding to a given angle of ground
-function get_ground_mode_for_angle(angle)
-	local segment_size = math.pi*2/4
-	local offset_angle = angle+(segment_size*0.5)
-	local segment = math.fmod(math.floor(offset_angle/segment_size), 4)+1
-	return segment
-end
-
-
-
--- Returns the angle reduced to the nearest equal rotational division based on the number of rotated sprites
-function get_sprite_angle_for_angle(angle)
-	local offset_angle = angle +(RAD_2_SPRITE_ANGLE*0.5)
-
-	return RAD_2_SPRITE_ANGLE * math.floor(SPRITE_ANGLE_2_RAD * offset_angle)
-end
-
-
-
--- Set the game object rotation
-function set_sprite_angle(self)
-	if self.on_ground then
-		local tile_data = TILE_DATA[tostring(self.on_ground.tile)]
-		
-		local angle = get_sprite_angle_for_angle(tile_data.angle[self.ground_mode])	
-		
-		go.set_rotation(vmath.quat_rotation_z(angle))
-	end
-end
 
 

@@ -9,7 +9,21 @@ def colour_matches(colour_a, colour_b):
 	
 	return (colour_a[0] == colour_b[0] and colour_a[1] == colour_b[1] and colour_a[2] == colour_b[2])
 
+	
+# Convert the angle to radians - it's easier to define degrees in data
+def process_angle(angle):
+	a = (angle/360)*(math.pi*2.0)
+	return a
 
+	
+def process_angles(angles):
+	outangles = []
+	for a in angles:
+		outangles.append(process_angle(a))
+
+	return outangles
+	
+	
 
 def get_low_and_high_pixels(img, height, x):
 	low = -1
@@ -61,9 +75,10 @@ def process_tile(img, data):
 	RIGHT_INDEX = 3
 	
 	if data == None:
-		outdata = {"angle" : [0,0,0,0]}
+		outdata = {"angle" : 0}
 	else:
 		outdata = deepcopy(data)
+		outdata["angle"] = process_angle(outdata["angle"])
 	
 	outdata["heightmap"] = [[],[],[],[]]
 	outdata["solid"] = False

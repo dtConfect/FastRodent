@@ -13,6 +13,7 @@ game_binding = /input/game.input_bindingc
 [display]
 width = 320
 height = 224
+update_frequency = 60
 
 [physics]
 scale = 0.02
