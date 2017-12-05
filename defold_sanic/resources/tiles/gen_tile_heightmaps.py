@@ -1,5 +1,6 @@
 import json
 import math
+import argparse
 from PIL import Image
 from copy import deepcopy
 
@@ -120,21 +121,26 @@ def process_tile(img, data):
 
 	
 if __name__ == "__main__":
-	INPUT_DATA_FILE_NAME = "tile_height.json"
-	OUTPUT_FILE_NAME = "gen_tile_black.json"
 	
+	parser = argparse.ArgumentParser(description='')
+	parser.add_argument('input_file_path', help="String path of the input file defining a tileset's properties.")
+	parser.add_argument('output_file_path', help="String path of the output file defining a tileset's properties.")
 	
+	args = parser.parse_args()
+	
+	print("Processing tile data '{input}' to '{output}'".format(input=args.input_file_path, output=args.output_file_path))
+	
+	#INPUT_DATA_FILE_NAME = "tile_height.json"
+	#OUTPUT_FILE_NAME = "gen_tile_black.json"
 	
 	# initialise variable for json data
 	outdata = {"params":{},"tile_data":{}}
 	
-	
-	
 	# Load tile data
 	try:
-		data_file = open(INPUT_DATA_FILE_NAME, 'r')
+		data_file = open(args.input_file_path, 'r')
 	except:
-		print("Failed to read data file, %s" % INPUT_DATA_FILE_NAME)
+		print("Failed to read data file, %s" % args.input_file_path)
 	
 	indata = json.load(data_file)
 
@@ -155,6 +161,7 @@ if __name__ == "__main__":
 	img_file_name = indata["params"]["height_img"]
 	try:
 		img_file = Image.open(img_file_name)
+		print("Opened tile image file '{image}'".format(image=img_file_name))
 	except:
 		print("Failed to read img file, %s" % img_file_name) 
 	
@@ -199,7 +206,7 @@ if __name__ == "__main__":
 	img_file.close()
 	
 	# Write out resultant json data
-	with open(OUTPUT_FILE_NAME, 'w') as outfile:
+	with open(args.output_file_path, 'w') as outfile:
 		json.dump(outdata, outfile,indent=4)
 		#json.dump(outdata, outfile)
 		
